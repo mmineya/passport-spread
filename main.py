@@ -15,6 +15,8 @@ SCALE = 2
 SIZE = 1024
 W = H = SIZE * SCALE
 RNG = random.Random(91403765)
+INK = (42, 42, 38)
+NAVY = (24, 49, 75)
 
 
 def font(size: int, bold: bool = False, mono: bool = False) -> ImageFont.FreeTypeFont:
@@ -34,10 +36,14 @@ def q(v: float) -> int:
 
 
 def line(draw: ImageDraw.ImageDraw, points, fill, width=1):
+    if getattr(draw, "document_ink", False):
+        fill = INK + tuple(fill[3:])
     draw.line([(q(x), q(y)) for x, y in points], fill=fill, width=q(width), joint="curve")
 
 
 def text(draw: ImageDraw.ImageDraw, xy, value, size=9, fill=(60, 54, 42), bold=False, mono=False, anchor=None):
+    if len(fill) == 3:
+        fill = NAVY if value in {"REPUBLIC OF VERMEILLE - PASSEPORT", "REPUBLIC OF VERMEILLE", "VISAS / VISAS", "VISA DE SEJOUR  /  ARTISTE"} else INK
     draw.text((q(xy[0]), q(xy[1])), value, font=font(size, bold, mono), fill=fill, anchor=anchor)
 
 
@@ -143,7 +149,7 @@ def stamp(draw, cx, cy, radius, color, title, date, kind="oval", angle=-8):
     sd.text((q(110),q(51)), date, font=f2, fill=color+(235,), anchor="mm")
     sd.text((q(110),q(69)), "VERMEILLE", font=f1, fill=color+(220,), anchor="mm")
     layer=layer.rotate(angle, resample=Image.Resampling.BICUBIC, expand=False)
-    draw._image.alpha_composite(layer, (q(cx-55),q(cy-27)))
+    draw._image.paste(layer, (q(cx-55),q(cy-27)), layer)
 
 
 def make_art() -> Image.Image:
@@ -160,16 +166,18 @@ def make_art() -> Image.Image:
     shadow=shadow.filter(ImageFilter.GaussianBlur(q(22)))
     base=Image.alpha_composite(base.convert("RGBA"),shadow)
     # The open passport is one connected spread with a visible central binding.
-    paper=Image.new("RGBA",(W,H),(0,0,0,0)); d=ImageDraw.Draw(paper)
+    # Blend translucent ink onto opaque paper; RGBA drawing on RGBA would
+    # replace alpha and expose the dark tabletop through the page itself.
+    paper=base.convert("RGB"); d=ImageDraw.Draw(paper, "RGBA")
     d.rounded_rectangle((q(66),q(75),q(958),q(920)),radius=q(18),fill=(193,179,145),outline=(83,70,51),width=q(2))
     d.rounded_rectangle((q(72),q(81),q(952),q(914)),radius=q(14),fill=(229,218,187),outline=(247,238,210),width=q(2))
     # Warm, subtly varied page field, split by the binding.
     for y in range(q(86),q(910)):
         t=(y-q(86))/(q(824))
-        c=(int(238-14*t),int(229-16*t),int(201-16*t),255)
+        c=(int(243-8*t),int(234-8*t),int(211-8*t),255)
         d.line((q(78),y,q(946),y),fill=c,width=1)
-    d.rectangle((q(78),q(87),q(507),q(908)),fill=(0,0,0,12))
-    d.rectangle((q(519),q(87),q(946),q(908)),fill=(255,255,255,10))
+    d.rectangle((q(78),q(87),q(507),q(908)),fill=INK+(2,))
+    d.rectangle((q(519),q(87),q(946),q(908)),fill=(255,255,255,3))
     # Page perimeter, stitch marks and central cloth hinge.
     d.rounded_rectangle((q(83),q(92),q(941),q(903)),radius=q(8),outline=(155,137,99),width=q(1))
     for y in range(111,889,12):
@@ -178,8 +186,8 @@ def make_art() -> Image.Image:
     line(d,[(507,96),(507,900)],(124,103,75,170),.7)
     line(d,[(517,96),(517,900)],(249,239,212,220),.7)
     # Underprint guilloche and a faint maritime emblem on both leaves.
-    guilloche(d,(91,219,493,781),(171,151,111,45),.4)
-    guilloche(d,(529,107,933,891),(164,143,104,38),1.1)
+    guilloche(d,(91,219,493,781),INK+(24,),.4)
+    guilloche(d,(529,107,933,891),INK+(22,),1.1)
     for cx,cy in [(291,626),(722,345),(721,738)]:
         for r in (22,32,42):
             d.ellipse((q(cx-r),q(cy-r),q(cx+r),q(cy+r)),outline=(157,137,100,35),width=q(.6))
@@ -196,6 +204,7 @@ def make_art() -> Image.Image:
     text(d,(103,168),"Passeport de la Republique de Vermeille",6,(104,88,61))
     # Identity portrait.
     portrait(d,105,198,112,143)
+    d.document_ink = True
     # Watermark seal overlapping portrait field, lightly printed.
     d.ellipse((q(127),q(270),q(194),q(337)),outline=(119,102,72,45),width=q(1))
     d.ellipse((q(133),q(276),q(188),q(331)),outline=(119,102,72,38),width=q(.6))
@@ -227,7 +236,7 @@ def make_art() -> Image.Image:
     text(d,(144,502),"BIOMETRIC",5.5,(98,86,61),True)
     text(d,(144,511),"VERMEILLAIS CITIZEN  /  MERIDIAN COASTAL REGISTER",5.2,(104,94,72),mono=True)
     # MRZ panel.
-    d.rectangle((q(97),q(538),q(498),q(590)),fill=(225,217,194,235),outline=(155,139,109),width=q(.6))
+    d.rectangle((q(97),q(538),q(498),q(590)),fill=(211,198,166),outline=INK,width=q(.6))
     text(d,(103,542),"P<PRTCABRAL<<MARIANA<ELENA<<<<<<<<<<<<",7.4,(38,40,35),mono=True)
     text(d,(103,562),"PRTC91403765<4VER8411278F2906136<<<<<<",7.4,(38,40,35),mono=True)
     text(d,(103,583),"READABLE BY MACHINE  /  LECTURE OPTIQUE",4.8,(113,100,73),True)
@@ -255,17 +264,17 @@ def make_art() -> Image.Image:
     d.ellipse((q(866),q(204),q(894),q(232)),outline=(145,76,56,145),width=q(.7))
     centered(d,880,210,"V",12,(139,77,54,170),True)
     # Chronological port / city travel stamps.
-    stamp(d,613,345,1,(40,87,143),"PORT AUTHORITY OF SAINT-AMARY","ARRIVAL 2021-03-02","oval",-7)
-    stamp(d,803,345,1,(58,111,73),"CITY OF NORDHAFEN","DEPARTURE 2021-09-18","box",5)
-    stamp(d,613,466,1,(157,57,49),"HALCOTT AIRPORT","ENTRY 2023-05-11","circle",-4)
-    stamp(d,803,466,1,(147,105,48),"PORT OF VELLACROIX","EXIT 2024-02-09","oval",6)
+    stamp(d,613,345,1,(15,63,137),"PORT AUTHORITY OF SAINT-AMARY","ARRIVAL 2021-03-02","oval",-7)
+    stamp(d,803,345,1,(20,94,47),"CITY OF NORDHAFEN","DEPARTURE 2021-09-18","box",5)
+    stamp(d,613,466,1,(161,29,32),"HALCOTT AIRPORT","ENTRY 2023-05-11","circle",-4)
+    stamp(d,803,466,1,(131,76,15),"PORT OF VELLACROIX","EXIT 2024-02-09","oval",6)
     # Fine guide rules give the right page a real ledger rhythm.
     for y in (411,532,553,574,595,616,637,658,679,700,721,742,763,784,805,826,847,868):
         line(d,[(544,y),(927,y)],(155,137,104,46),.45)
     text(d,(548,551),"ENTRY & DEPARTURE RECORD",5.5,(120,101,70),True)
     text(d,(548,563),"MARITIME CLIMATE  /  MIXED PORTUGUESE-FRENCH CUSTOM",5.2,(128,111,79))
     # Faint administrative annotation, a quiet clue rather than a caption.
-    rounded(d,(552,601,915,670),3,(154,130,89,130),.65,(230,220,193,120))
+    rounded(d,(552,601,915,670),3,INK+(130,),.65,(220,207,175))
     text(d,(562,608),"PORTS KEEP THEIR OWN CALENDARS.",6.3,(87,77,57),True)
     text(d,(562,621),"A market stall may count as a studio; a studio",5.5,(100,89,66))
     text(d,(562,631),"may be entered as a vessel. Customs practice",5.5,(100,89,66))
@@ -284,9 +293,8 @@ def make_art() -> Image.Image:
     text(d,(548,878),"02",8,(101,84,59),True,mono=True)
     text(d,(821,878),"PASSPORT CONTROL  /  CONTROLE",5,(117,97,68),True)
     # Fine grain confined to paper keeps output tactile while remaining deterministic.
-    paper=Image.alpha_composite(paper,Image.new("RGBA",(W,H),(0,0,0,0)))
     # Add sparse fibers on the page as tiny, low-contrast marks.
-    grain=ImageDraw.Draw(paper)
+    grain=ImageDraw.Draw(paper, "RGBA")
     for _ in range(1500):
         xx=RNG.randrange(q(80),q(944)); yy=RNG.randrange(q(90),q(906))
         if RNG.random()<.5:
@@ -294,7 +302,7 @@ def make_art() -> Image.Image:
         else:
             col=(255,251,226,35)
         grain.line((xx,yy,xx+RNG.randrange(1,5),yy),fill=col,width=1)
-    base=Image.alpha_composite(base,paper)
+    base=paper
     out=base.convert("RGB").resize((SIZE,SIZE),Image.Resampling.LANCZOS)
     return out
 
